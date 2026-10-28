@@ -1,0 +1,1361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#f2f7ec" />
+<title>小恐龙找妈妈 · 迷宫大冒险 | Baby Dino Maze Adventure</title>
+<style>
+  :root{
+    --ink:#33463a;
+    --dim:#7d9284;
+    --green:#4caf6e;
+    --green-d:#3a8f57;
+    --orange:#f4a259;
+    --card:#ffffff;
+    --line:rgba(70,110,80,.16);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0;padding:0;height:100%;overflow:hidden;background:#eef5e6;color:var(--ink);
+    font-family:system-ui,-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    user-select:none;-webkit-user-select:none;touch-action:none;overscroll-behavior:none;
+  }
+  #game{display:block;position:fixed;inset:0;}
+
+  /* ---------- 顶栏 ---------- */
+  #hud{
+    position:fixed;top:0;left:0;right:0;z-index:10;display:none;
+    align-items:center;gap:10px;padding:10px 14px calc(10px + env(safe-area-inset-top));
+    background:rgba(255,255,255,.78);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--line);
+  }
+  #hud.show{display:flex;}
+  .chip{
+    display:flex;align-items:center;gap:7px;padding:6px 13px;border-radius:999px;
+    background:rgba(76,175,110,.10);border:1px solid rgba(76,175,110,.22);
+    font-size:13px;font-weight:700;color:var(--green-d);white-space:nowrap;
+  }
+  .chip b{font-size:15px;font-variant-numeric:tabular-nums;}
+  .chip.gray{background:rgba(120,140,130,.08);border-color:rgba(120,140,130,.2);color:#5c6f63;}
+  .spacer{flex:1;}
+  .hbtn{
+    padding:7px 14px;border-radius:999px;border:1px solid var(--line);cursor:pointer;
+    background:#fff;font-family:inherit;font-size:13px;font-weight:700;color:#4c6154;
+    transition:transform .08s, background .15s;
+  }
+  .hbtn:active{transform:scale(.94);background:#f2f7ee;}
+  .hbtn.primary{background:var(--green);border-color:var(--green-d);color:#fff;box-shadow:0 3px 10px rgba(76,175,110,.35);}
+  .hbtn:disabled{opacity:.4;cursor:default;}
+  .en{font-size:.76em;font-weight:700;opacity:.68;letter-spacing:.04em;}
+  .title-en{
+    margin:3px 0 0;font-size:12px;font-weight:800;letter-spacing:.26em;
+    text-transform:uppercase;color:#7ca288;
+  }
+  .card h1 .en-h1{
+    display:block;margin-top:7px;font-size:.44em;font-weight:800;
+    letter-spacing:.14em;color:#7ca288;text-transform:uppercase;
+  }
+  .sub .en{display:block;margin-top:6px;}
+
+  /* ---------- 遮罩 ---------- */
+  #overlay{
+    position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;
+    padding:20px;
+    background:
+      radial-gradient(1200px 720px at 50% -12%, rgba(255,255,255,.50), transparent 62%),
+      radial-gradient(900px 620px at 6% 108%, rgba(126,212,154,.30), transparent 62%),
+      radial-gradient(900px 620px at 98% 104%, rgba(244,162,89,.22), transparent 62%);
+    -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
+    transition:opacity .28s, visibility .28s;
+  }
+  #overlay.hidden{opacity:0;visibility:hidden;}
+
+  @keyframes cardIn{
+    0%{opacity:0;transform:translateY(26px) scale(.93)}
+    62%{opacity:1;transform:translateY(-5px) scale(1.012)}
+    100%{opacity:1;transform:none}
+  }
+  @keyframes sheen{
+    0%{transform:translateX(-140%) rotate(9deg)}
+    58%,100%{transform:translateX(240%) rotate(9deg)}
+  }
+  @keyframes floaty{0%,100%{transform:translateY(0) rotate(-1.2deg)}50%{transform:translateY(-8px) rotate(1.2deg)}}
+  @keyframes glowPulse{0%,100%{opacity:.5;transform:translateX(-50%) scale(1)}50%{opacity:.95;transform:translateX(-50%) scale(1.08)}}
+  @keyframes heartBeat{0%,100%{transform:scale(1)}32%{transform:scale(1.3)}64%{transform:scale(.94)}}
+  @keyframes titleFlow{0%{background-position:0% 50%}100%{background-position:200% 50%}}
+  @keyframes popIn{0%{opacity:0;transform:translateY(10px) scale(.92)}100%{opacity:1;transform:none}}
+
+  .card{
+    position:relative;min-width:0;width:min(600px,100%);max-width:100%;max-height:94vh;overflow-y:auto;overflow-x:hidden;
+    padding:36px 30px 24px;text-align:center;
+    background:linear-gradient(180deg, rgba(255,255,255,.97), rgba(252,253,248,.94));
+    border-radius:30px;border:1px solid rgba(255,255,255,.92);
+    box-shadow:
+      0 32px 90px rgba(48,88,62,.28),
+      0 2px 0 rgba(255,255,255,.95) inset,
+      0 -20px 46px rgba(120,180,140,.10) inset;
+    -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);
+    animation:cardIn .6s cubic-bezier(.18,.9,.24,1.08) both;
+  }
+  .card::before{            /* 顶部彩带 */
+    content:'';position:absolute;left:0;right:0;top:0;height:6px;
+    background:linear-gradient(90deg,#8fe0a8,#4caf6e 32%,#f4a259 72%,#f2b134);
+    z-index:2;
+  }
+  .card::after{             /* 高光扫过 */
+    content:'';position:absolute;top:-45%;left:0;width:38%;height:190%;pointer-events:none;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.42),transparent);
+    transform:translateX(-140%) rotate(9deg);
+    animation:sheen 7s ease-in-out 1.2s infinite;
+  }
+
+  /* ---------- 顶部主角区 ---------- */
+  .hero{position:relative;padding:6px 0 0;margin-bottom:6px;}
+  .hero-glow{
+    position:absolute;left:50%;top:2px;width:300px;height:130px;
+    background:radial-gradient(closest-side, rgba(126,212,154,.55), rgba(126,212,154,0) 72%);
+    filter:blur(4px);animation:glowPulse 4.2s ease-in-out infinite;pointer-events:none;
+  }
+  .hero-dinos{
+    position:relative;font-size:48px;line-height:1;letter-spacing:4px;
+    animation:floaty 3.8s ease-in-out infinite;
+  }
+  .hero-dinos .heart{
+    display:inline-block;font-size:23px;margin:0 1px;vertical-align:middle;
+    animation:heartBeat 1.9s ease-in-out infinite;
+  }
+  .card h1.title{
+    position:relative;margin:12px 0 8px;font-size:35px;font-weight:900;
+    letter-spacing:.06em;line-height:1.12;
+  }
+  .card h1.title span{
+    background:linear-gradient(100deg,#2f7d4b,#4fbf74 26%,#86d69b 44%,#f0a45f 74%,#e07f3f);
+    background-size:210% 100%;
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    animation:titleFlow 7s linear infinite;
+    filter:drop-shadow(0 2px 0 rgba(255,255,255,.9));
+  }
+  .ribbon{
+    display:inline-block;margin:2px 0 0;padding:5px 15px;border-radius:999px;
+    font-size:11.5px;font-weight:800;letter-spacing:.18em;color:#3f7a55;
+    background:linear-gradient(180deg, rgba(76,175,110,.16), rgba(76,175,110,.08));
+    border:1px solid rgba(76,175,110,.26);
+    box-shadow:0 2px 8px rgba(76,175,110,.12);
+  }
+  .card .sub{margin:14px 0 0;font-size:13.5px;color:var(--dim);line-height:1.75;}
+
+  /* ---------- 关卡按钮 ---------- */
+  .level-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:20px 0 16px;min-width:0;}
+  .lvbtn{
+    position:relative;min-width:0;padding:15px 4px 11px;border-radius:18px;cursor:pointer;font-family:inherit;
+    border:1.5px solid rgba(70,110,80,.13);
+    background:linear-gradient(180deg,#fff,#f4faf0);
+    box-shadow:0 4px 14px rgba(60,100,70,.07), 0 1px 0 #fff inset;
+    overflow:hidden;
+    animation:popIn .45s cubic-bezier(.2,.9,.3,1.3) both;
+    transition:transform .16s cubic-bezier(.2,.9,.3,1.5), box-shadow .2s, border-color .2s;
+  }
+  .lvbtn::before{
+    content:'';position:absolute;left:0;right:0;top:0;height:4px;
+    background:linear-gradient(90deg,var(--c1,#8fe0a8),var(--c2,#4caf6e));
+  }
+  .lvbtn::after{
+    content:'';position:absolute;left:50%;top:50%;width:120%;height:120%;
+    transform:translate(-50%,-50%) scale(.2);opacity:0;border-radius:50%;
+    background:radial-gradient(closest-side, var(--c1,#8fe0a8), transparent 70%);
+    transition:opacity .25s, transform .35s;
+  }
+  .lvbtn:hover{transform:translateY(-5px) scale(1.045);border-color:var(--c2,#4caf6e);
+    box-shadow:0 14px 26px rgba(60,100,70,.18), 0 1px 0 #fff inset;}
+  .lvbtn:hover::after{opacity:.35;transform:translate(-50%,-50%) scale(1);}
+  .lvbtn:active{transform:translateY(-1px) scale(.97);}
+  .lvbtn .n{position:relative;font-size:22px;font-weight:900;line-height:1;color:var(--c2,#3f8f5b);}
+  .lvbtn .d{position:relative;font-size:10px;color:var(--dim);margin-top:5px;letter-spacing:0;line-height:1.25;}
+  .lvbtn .star{
+    position:absolute;top:6px;right:8px;font-size:11px;color:#f2b134;z-index:1;
+    filter:drop-shadow(0 1px 2px rgba(242,177,52,.45));
+  }
+
+  /* ---------- 主按钮 ---------- */
+  .btn{
+    position:relative;display:inline-block;width:100%;padding:15px;border:0;border-radius:16px;cursor:pointer;
+    font-family:inherit;font-size:16.5px;font-weight:900;letter-spacing:.14em;color:#fff;overflow:hidden;
+    background:linear-gradient(180deg,#65c987,#3f9d5f 62%,#348a52);
+    box-shadow:0 12px 26px rgba(64,150,96,.38), 0 2px 0 rgba(255,255,255,.35) inset, 0 -3px 0 rgba(0,0,0,.08) inset;
+    transition:transform .12s, box-shadow .2s, filter .2s;
+  }
+  .btn::after{
+    content:'';position:absolute;top:-40%;left:0;width:36%;height:180%;pointer-events:none;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent);
+    transform:translateX(-140%) rotate(8deg);
+  }
+  .btn:hover{filter:brightness(1.05);box-shadow:0 16px 32px rgba(64,150,96,.46), 0 2px 0 rgba(255,255,255,.4) inset;}
+  .btn:hover::after{animation:sheen 1.1s ease-out;}
+  .btn:active{transform:translateY(2px);}
+  .btn.ghost{
+    margin-top:10px;background:#fff;color:#5c6f63;border:1px solid var(--line);box-shadow:none;
+    font-size:13px;padding:11px;letter-spacing:.08em;
+  }
+
+  /* ---------- 操作说明 ---------- */
+  .keys{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:16px 0 14px;text-align:left;}
+  .keys div{
+    display:flex;align-items:center;gap:8px;font-size:12.5px;color:#5c6f63;
+    background:linear-gradient(180deg,#fbfdf8,#f3f9ef);border:1px solid var(--line);
+    border-radius:12px;padding:8px 10px;
+  }
+  .keys kbd{
+    font-family:inherit;font-size:11px;font-weight:800;color:#3f5a49;
+    background:#e4efdf;border:1px solid #cbe0c5;border-bottom-width:2px;border-radius:7px;padding:2px 7px;white-space:nowrap;
+  }
+
+  /* ---------- 通关进度 ---------- */
+  .progress{margin:2px 0 2px;}
+  .progress .ptxt{display:flex;justify-content:space-between;align-items:baseline;
+    font-size:11.5px;font-weight:700;color:var(--dim);letter-spacing:.06em;margin-bottom:6px;}
+  .progress .ptxt b{font-size:14px;color:var(--green-d);font-variant-numeric:tabular-nums;}
+  .pbar{height:8px;border-radius:999px;background:rgba(70,110,80,.10);overflow:hidden;}
+  .pbar i{
+    display:block;height:100%;width:0;border-radius:999px;
+    background:linear-gradient(90deg,#8fe0a8,#4caf6e 55%,#f4a259);
+    box-shadow:0 0 10px rgba(76,175,110,.45);
+    transition:width .9s cubic-bezier(.2,.9,.3,1);
+  }
+
+  .dinos{font-size:44px;line-height:1;margin-bottom:8px;letter-spacing:6px;}
+
+  .result{display:flex;justify-content:center;gap:12px;margin:4px 0 18px;}
+  .result .box{flex:1;padding:13px 6px;border-radius:14px;background:#f6faf3;border:1px solid var(--line);}
+  .result .box .n{font-size:24px;font-weight:900;font-variant-numeric:tabular-nums;color:#3f5a49;}
+  .result .box .k{font-size:11px;color:var(--dim);margin-top:4px;letter-spacing:.12em;}
+  .medal{font-size:13px;font-weight:800;color:#f2b134;letter-spacing:.14em;margin:-8px 0 16px;height:18px;}
+
+  /* ---------- 触屏提示 ---------- */
+  #touchTip{
+    position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:9;display:none;
+    padding:9px 20px;border-radius:999px;background:rgba(51,70,58,.82);color:#eaf5e6;
+    font-size:13px;font-weight:600;letter-spacing:.06em;pointer-events:none;
+    animation:fadeTip 5s forwards;
+  }
+  #touchTip.show{display:block;}
+  @keyframes fadeTip{0%{opacity:0;transform:translateX(-50%) translateY(8px)}10%{opacity:1;transform:translateX(-50%)}80%{opacity:1}100%{opacity:0}}
+
+  @media (max-width:640px){
+    .level-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;}
+    .card{padding:26px 16px 18px;border-radius:24px;}
+    .card h1.title{font-size:27px;}
+    .hero-dinos{font-size:38px;}
+    .hero-glow{width:220px;height:100px;}
+    .ribbon{font-size:10px;letter-spacing:.12em;padding:4px 12px;}
+    .lvbtn{padding:12px 2px 9px;}
+    .lvbtn .n{font-size:19px;}
+    .lvbtn .d{font-size:9px;}
+    .keys{grid-template-columns:1fr;}
+    #hud{gap:6px;padding:8px 10px;}
+    .chip{padding:5px 10px;font-size:12px;}
+    .chip b{font-size:13px;}
+    .hbtn{padding:6px 11px;font-size:12px;}
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <button class="hbtn" id="btnBack">关卡 <span class="en">Levels</span></button>
+  <div class="chip">第 <b id="lvVal">1</b> 关 <span class="en">Lv.<b id="lvEn">1</b></span></div>
+  <div class="chip gray">⏱ <b id="timeVal">0:00</b></div>
+  <div class="chip gray">👣 <b id="stepVal">0</b></div>
+  <div class="spacer"></div>
+  <button class="hbtn" id="btnHint">💡 提示 <span class="en">Hints</span> <b id="hintVal">3</b></button>
+  <button class="hbtn primary" id="btnRestart">重来 <span class="en">Retry</span></button>
+</div>
+
+<div id="touchTip">手指按住屏幕拖动方向，小恐龙就会一直走<br><span class="en">Hold &amp; drag on screen to keep walking</span></div>
+
+<div id="overlay"><div class="card" id="card"></div></div>
+
+<script>
+(() => {
+'use strict';
+
+  // ---- 安全存储：沙箱 iframe 中 localStorage 会抛异常，降级为内存存储 ----
+  const Store = (() => {
+    try {
+      const t = '__dino_test__';
+      localStorage.setItem(t, '1');
+      localStorage.removeItem(t);
+      return localStorage;
+    } catch (e) {
+      const mem = new Map();
+      return {
+        getItem: k => (mem.has(k) ? mem.get(k) : null),
+        setItem: (k, v) => mem.set(k, String(v)),
+        removeItem: k => mem.delete(k)
+      };
+    }
+  })();
+
+
+/* =========================================================
+   小恐龙找妈妈 · 迷宫大冒险
+   左下角小恐龙 → 右上角恐龙妈妈，10 个难度等级
+   ========================================================= */
+
+// ---------------- 工具 ----------------
+const clamp = (v,a,b) => v<a?a:(v>b?b:v);
+const lerp  = (a,b,t) => a+(b-a)*t;
+const TAU = Math.PI*2;
+const easeOut = t => 1 - Math.pow(1-t, 3);
+
+function shuffle(arr, rng){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor((rng ? rng() : Math.random()) * (i+1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function rr(c,x,y,w,h,r){
+  r = Math.min(r, Math.abs(w)/2, Math.abs(h)/2);
+  c.beginPath();
+  c.moveTo(x+r,y);
+  c.arcTo(x+w,y,x+w,y+h,r);
+  c.arcTo(x+w,y+h,x,y+h,r);
+  c.arcTo(x,y+h,x,y,r);
+  c.arcTo(x,y,x+w,y,r);
+  c.closePath();
+}
+
+// ---------------- 画布 ----------------
+const cvs = document.getElementById('game');
+const ctx = cvs.getContext('2d');
+let VW = 0, VH = 0, DPR = 1;
+
+function resize(){
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  VW = window.innerWidth;
+  VH = window.innerHeight;
+  cvs.width  = Math.round(VW*DPR);
+  cvs.height = Math.round(VH*DPR);
+  cvs.style.width  = VW+'px';
+  cvs.style.height = VH+'px';
+}
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 120));
+
+// ---------------- 音效 ----------------
+const Sfx = {
+  ac:null, master:null, ready:false, muted:false,
+  init(){
+    if(this.ready) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return;
+    try{
+      this.ac = new AC();
+      this.master = this.ac.createGain();
+      this.master.gain.value = this.muted ? 0 : 0.5;
+      this.master.connect(this.ac.destination);
+      this.ready = true;
+    }catch(e){}
+  },
+  resume(){ if(this.ac && this.ac.state === 'suspended') this.ac.resume(); },
+  tone(freq, dur, vol, type, delay){
+    if(!this.ready) return;
+    const t = this.ac.currentTime + (delay||0);
+    const g = this.ac.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.001, t+dur);
+    g.connect(this.master);
+    const o = this.ac.createOscillator();
+    o.type = type||'sine';
+    o.frequency.value = freq;
+    o.connect(g);
+    o.start(t); o.stop(t+dur+0.02);
+  },
+  step(){ this.tone(300 + Math.random()*80, 0.06, 0.05, 'triangle'); },
+  bump(){ this.tone(130, 0.08, 0.08, 'square'); },
+  hint(){ this.tone(880, 0.12, 0.1, 'sine'); this.tone(1320, 0.16, 0.08, 'sine', 0.08); },
+  win(){
+    [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f,i) =>
+      this.tone(f, 0.34, 0.13, 'triangle', i*0.1));
+  }
+};
+
+// ---------------- 语音提示（先中文、后英文，排队朗读） ----------------
+const Voice = {
+  enabled: true,
+  say(zhText, enText){
+    if(!this.enabled) return;
+    const SS = window.speechSynthesis;
+    if(!SS || !window.SpeechSynthesisUtterance) return;
+    try{
+      SS.cancel();
+      const mk = (text, lang, pitch) => {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = lang;
+        u.rate = 1.0;
+        u.pitch = pitch;          // 稍高一点，更像小恐龙的童声
+        u.volume = 1;
+        return u;
+      };
+      SS.speak(mk(zhText, 'zh-CN', 1.15));
+      SS.speak(mk(enText, 'en-US', 1.08));
+    }catch(e){}
+  },
+  stop(){ try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){} }
+};
+const LV_WORDS = ['one','two','three','four','five','six','seven','eight','nine','ten'];
+function voiceLevel(lv){
+  Voice.say('第' + lv + '关，出发去找妈妈！', 'Level ' + (LV_WORDS[lv-1] || lv) + '. Let\'s go find mom!');
+}
+
+// ---------------- 难度表 ----------------
+const LEVELS = [];
+for(let n=1;n<=10;n++){
+  LEVELS.push({
+    cols: Math.round(7 + (n-1)*2.66),   // 7 → 31
+    rows: Math.round(5 + (n-1)*2),      // 5 → 23
+    // 连续直行上限：走满就得拐弯（真实街道不会一条道走到黑）
+    maxRun: 2 + Math.floor((n-1)/4),
+    // 打通死路的比例：低难度多打通 → 有环路、路网像真实街道，也好走
+    braid: 0.62 - (n-1)*0.05,
+    // 路线“拐弯率”下限：低了说明太直，重新生成
+    minTurns: 0.46 + (n-1)*0.015
+  });
+}
+
+// ---------------- 迷宫 ----------------
+// 每格四面墙用位掩码：N=1, E=2, S=4, W=8
+const DIRS = [
+  { dx:0, dy:-1, self:1, opp:4 },  // 北
+  { dx:1, dy:0,  self:2, opp:8 },  // 东
+  { dx:0, dy:1,  self:4, opp:1 },  // 南
+  { dx:-1,dy:0,  self:8, opp:2 },  // 西
+];
+
+// 挖路：回溯法保证一条贯通全图的长路线，同时限制“连续直行”的长度
+// —— 直着走满 maxRun 格就必须拐弯，避免出现贯穿全图的大直道
+function carveMaze(cols, rows, maxRun){
+  const g = Array.from({length:rows}, () => new Array(cols).fill(15));
+  const vis = Array.from({length:rows}, () => new Array(cols).fill(false));
+  const stack = [[0, rows-1, -1, 0]];      // x, y, 来向, 已连续直行格数
+  vis[rows-1][0] = true;
+
+  while(stack.length){
+    const top = stack[stack.length-1];
+    const x = top[0], y = top[1], inDir = top[2], run = top[3];
+
+    const free = [], bent = [];
+    for(const d of shuffle(DIRS.slice())){
+      const nx = x+d.dx, ny = y+d.dy;
+      if(nx<0 || ny<0 || nx>=cols || ny>=rows || vis[ny][nx]) continue;
+      free.push(d);
+      const di = DIRS.indexOf(d);
+      if(!(run >= maxRun && di === inDir)) bent.push(d);
+    }
+
+    // 优先走“拐弯”方向；实在没得走才允许继续直行（保证每格都能挖到）
+    const order = bent.length ? bent : free;
+    if(!order.length){ stack.pop(); continue; }
+
+    const d = order[0];
+    const di = DIRS.indexOf(d);
+    const nx = x+d.dx, ny = y+d.dy;
+    g[y][x]   &= ~d.self;
+    g[ny][nx] &= ~d.opp;
+    vis[ny][nx] = true;
+    stack.push([nx, ny, di, di === inDir ? run+1 : 1]);
+  }
+  return g;
+}
+
+// 打通部分死胡同：形成环路和 T 形路口，走起来才像真实的路网
+function braidDeadEnds(g, cols, rows, ratio){
+  const dead = [];
+  for(let y=0;y<rows;y++){
+    for(let x=0;x<cols;x++){
+      let walls = 0;
+      for(const d of DIRS) if(g[y][x] & d.self) walls++;
+      if(walls === 3) dead.push([x, y]);
+    }
+  }
+  shuffle(dead);
+  for(const [x, y] of dead){
+    if(Math.random() > ratio) continue;
+    const cands = [];
+    for(const d of DIRS){
+      if(!(g[y][x] & d.self)) continue;
+      const nx = x+d.dx, ny = y+d.dy;
+      if(nx<0 || ny<0 || nx>=cols || ny>=rows) continue;
+      cands.push(d);
+    }
+    if(!cands.length) continue;
+    const d = cands[(Math.random()*cands.length) | 0];
+    g[y][x]       &= ~d.self;
+    g[y+d.dy][x+d.dx] &= ~d.opp;
+  }
+}
+
+// 统计一条路线有多“绕”：拐弯占比 + 最长直道长度
+function pathStats(path){
+  let turns = 0, run = 1, longest = 1;
+  for(let i=1;i<path.length;i++){
+    const dx = path[i][0]-path[i-1][0];
+    const dy = path[i][1]-path[i-1][1];
+    if(i > 1){
+      const px = path[i-1][0]-path[i-2][0];
+      const py = path[i-1][1]-path[i-2][1];
+      if(dx !== px || dy !== py){ turns++; run = 1; }
+      else run++;
+    }
+    if(run > longest) longest = run;
+  }
+  const steps = Math.max(1, path.length-1);
+  return { turnRatio: turns/steps, longestStraight: longest, steps };
+}
+
+function genMaze(cols, rows, cfg){
+  const braid    = cfg.braid != null ? cfg.braid : 0.3;
+  const minTurns = cfg.minTurns != null ? cfg.minTurns : 0.48;
+  const maxRun   = cfg.maxRun != null ? cfg.maxRun : 4;
+
+  const straightCap = Math.max(3, maxRun + 1);   // 允许的最长直道格数
+  let best = null, bestScore = -1;
+
+  // 生成多份，挑最像真实路网的一份（太直的重来）
+  for(let attempt=0; attempt<26; attempt++){
+    const g = carveMaze(cols, rows, maxRun);
+    braidDeadEnds(g, cols, rows, braid);
+
+    const path = bfsPath(g, cols, rows, 0, rows-1, cols-1, 0);
+    if(!path || path.length < 2) continue;
+    const st = pathStats(path);
+
+    // 拐弯越多、最长直道越短 → 分越高；同时奖励更长的路线（别抄近道）
+    const score = st.turnRatio * 2
+                - st.longestStraight / (cols + rows)
+                + (st.steps / (cols*rows)) * 0.8;
+    if(score > bestScore){
+      best = g; bestScore = score;
+      if(st.turnRatio >= minTurns && st.longestStraight <= straightCap) break;  // 够绕了
+    }
+  }
+  return best || carveMaze(cols, rows, maxRun);
+}
+
+// BFS 最短路径（提示用）
+function bfsPath(maze, cols, rows, sx, sy, tx, ty){
+  const prev = new Int32Array(cols*rows).fill(-1);
+  const seen = new Uint8Array(cols*rows);
+  const qx = [sx], qy = [sy];
+  seen[sy*cols + sx] = 1;
+  let head = 0;
+  while(head < qx.length){
+    const cx = qx[head], cy = qy[head]; head++;
+    if(cx === tx && cy === ty) break;
+    const w = maze[cy][cx];
+    for(const d of DIRS){
+      if(w & d.self) continue;
+      const nx = cx+d.dx, ny = cy+d.dy;
+      const id = ny*cols + nx;
+      if(seen[id]) continue;
+      seen[id] = 1;
+      prev[id] = cy*cols + cx;
+      qx.push(nx); qy.push(ny);
+    }
+  }
+  const path = [];
+  let cur = ty*cols + tx;
+  if(!seen[cur]) return null;
+  while(cur !== -1){
+    path.push([cur % cols, (cur / cols) | 0]);
+    cur = prev[cur];
+  }
+  path.reverse();
+  return path;
+}
+
+// ---------------- 游戏状态 ----------------
+const G = {
+  state: 'menu',        // menu | playing | win
+  level: 1,
+  cols: 0, rows: 0, maze: null,
+  px: 0, py: 0,         // 玩家所在格
+  facing: 1,            // 当前朝向（DIRS 下标）
+  faceAng: 0,           // 渲染朝向角（平滑）
+  mv: null,             // 移动动画
+  steps: 0,
+  time: 0,
+  started: false,
+  hints: 3,
+  hintPath: null,
+  hintTimer: 0,
+  footprints: new Set(),
+  bumpT: 0,             // 撞墙抖动
+  winT: 0,
+  cell: 40, ox: 0, oy: 0,
+  roadsPath: null       // 缓存弯道路径（重排/换关时重建）
+};
+
+const particles = [];
+
+function spawnHearts(x, y, n){
+  for(let i=0;i<n;i++){
+    particles.push({
+      x: x + (Math.random()-0.5)*40,
+      y: y + (Math.random()-0.5)*20,
+      vy: -40 - Math.random()*50,
+      vx: (Math.random()-0.5)*30,
+      life: 0, max: 1.4 + Math.random()*0.8,
+      size: 7 + Math.random()*8
+    });
+  }
+}
+
+// ---------------- 开始 / 重开 ----------------
+function startLevel(lv){
+  const cfg = LEVELS[lv-1];
+  G.level = lv;
+  G.cols = cfg.cols;
+  G.rows = cfg.rows;
+  G.maze = genMaze(cfg.cols, cfg.rows, cfg);
+  G.roadsPath = null;
+  G.px = 0; G.py = cfg.rows-1;          // 左下角
+  G.facing = 1; G.faceAng = 0;
+  G.mv = null;
+  G.steps = 0; G.time = 0; G.started = false;
+  G.hints = 3; G.hintPath = null; G.hintTimer = 0;
+  G.footprints = new Set();
+  G.footprints.add(G.py*1000 + G.px);
+  G.winT = 0;
+  particles.length = 0;
+
+  layoutMaze();
+
+  G.state = 'playing';
+  document.getElementById('hud').classList.add('show');
+  voiceLevel(lv);
+  hideCard();
+  syncHUD();
+
+  if('ontouchstart' in window || navigator.maxTouchPoints > 0){
+    const tip = document.getElementById('touchTip');
+    tip.classList.remove('show');
+    void tip.offsetWidth;
+    tip.classList.add('show');
+  }
+}
+
+function layoutMaze(){
+  const hudH = 58;
+  const pad = 18;
+  const availW = VW - pad*2;
+  const availH = VH - hudH - pad*2;
+  G.cell = Math.floor(Math.min(availW/G.cols, availH/G.rows));
+  G.cell = Math.max(G.cell, 8);
+  G.ox = Math.round((VW - G.cell*G.cols)/2);
+  G.oy = Math.round(hudH + (availH - G.cell*G.rows)/2 + pad - 8);
+  G.roadsPath = null;
+}
+
+const MOVE_T = 0.13;
+
+function tryMove(dirIdx){
+  if(G.mv || G.state !== 'playing') return;
+  const d = DIRS[dirIdx];
+  const w = G.maze[G.py][G.px];
+  if(w & d.self){
+    G.bumpT = 1;
+    Sfx.bump();
+    return;
+  }
+  if(!G.started){ G.started = true; }
+  G.mv = { fx:G.px, fy:G.py, tx:G.px+d.dx, ty:G.py+d.dy, t:0 };
+  G.px += d.dx; G.py += d.dy;
+  G.facing = dirIdx;
+  G.steps++;
+  G.footprints.add(G.py*1000 + G.px);
+  Sfx.step();
+  syncHUD();
+}
+
+function useHint(){
+  if(G.state !== 'playing' || G.hints <= 0 || G.hintTimer > 0) return;
+  G.hints--;
+  G.hintPath = bfsPath(G.maze, G.cols, G.rows, G.px, G.py, G.cols-1, 0);
+  G.hintTimer = 3.2;
+  Sfx.hint();
+  Voice.say('跟着金色的小路走', 'Follow the golden path.');
+  syncHUD();
+}
+
+function winLevel(){
+  G.state = 'win';
+  G.winT = 0;
+  Sfx.win();
+  Voice.say('找到妈妈啦，你真棒！', 'You found mom! Well done!');
+  const mx = G.ox + (G.cols-0.5)*G.cell;
+  const my = G.oy + 0.5*G.cell;
+  spawnHearts(mx, my, 26);
+  spawnHearts(G.ox + 0.5*G.cell, G.oy + (G.rows-0.5)*G.cell, 14);
+
+  // 最佳纪录
+  const key = 'dino_maze_best_' + G.level;
+  const prev = Number(Store.getItem(key) || 0);
+  const isBest = !prev || G.time < prev;
+  if(isBest) Store.setItem(key, String(G.time));
+
+  setTimeout(() => showCard('win', isBest), 900);
+}
+
+// ---------------- 更新 ----------------
+let elapsed = 0;
+
+function update(dt){
+  elapsed += dt;
+
+  // 持续移动输入
+  if(G.state === 'playing'){
+    if(!G.mv){
+      const d = getHeldDir();
+      if(d >= 0) tryMove(d);
+    }
+    if(G.started && G.state === 'playing') G.time += dt;
+  }
+
+  if(G.mv){
+    G.mv.t += dt / MOVE_T;
+    if(G.mv.t >= 1){
+      G.mv = null;
+      if(G.px === G.cols-1 && G.py === 0 && G.state === 'playing') winLevel();
+    }
+  }
+
+  // 朝向平滑
+  const target = G.facing * (Math.PI/2);
+  let diff = target - G.faceAng;
+  while(diff >  Math.PI) diff -= TAU;
+  while(diff < -Math.PI) diff += TAU;
+  G.faceAng += diff * Math.min(1, 14*dt);
+
+  G.bumpT = Math.max(0, G.bumpT - dt*5);
+  if(G.hintTimer > 0){
+    G.hintTimer -= dt;
+    if(G.hintTimer <= 0) G.hintPath = null;
+  }
+
+  // 粒子
+  let w = 0;
+  for(let i=0;i<particles.length;i++){
+    const p = particles[i];
+    p.life += dt;
+    if(p.life >= p.max) continue;
+    p.x += p.vx*dt; p.y += p.vy*dt;
+    p.vy += 26*dt;
+    particles[w++] = p;
+  }
+  particles.length = w;
+
+  if(G.state === 'win') G.winT += dt;
+}
+
+function cellToPix(cx, cy){
+  return {
+    x: G.ox + (cx+0.5)*G.cell,
+    y: G.oy + (cy+0.5)*G.cell
+  };
+}
+
+// ---------------- 弯道路网 ----------------
+// 稳定伪随机（同一个格子每帧偏移一致，画面不会抖）
+function hash3(a, b, c){
+  let h = (a*374761393 + b*668265263 + c*2147483647) | 0;
+  h = (h ^ (h >> 13)) * 1274126177;
+  return ((h ^ (h >> 16)) >>> 0) / 4294967295;
+}
+
+// 把走廊画成一路带弧度的弯道：每条通道都用二次曲线轻微拱起，
+// 拐弯处靠圆角接头自然形成圆弧，不再是一条条横平竖直的直线
+function buildRoadPath(){
+  const cell = G.cell, ox = G.ox, oy = G.oy;
+  const cols = G.cols, rows = G.rows;
+  const p = new Path2D();
+
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      const w = G.maze[r][c];
+      const x1 = ox + (c+0.5)*cell, y1 = oy + (r+0.5)*cell;
+
+      for(const di of [1, 2]){            // 只画东、南两条边，每条通道画一次
+        const d = DIRS[di];
+        if(w & d.self) continue;
+        const nx = c+d.dx, ny = r+d.dy;
+        if(nx >= cols || ny >= rows) continue;
+
+        const x2 = ox + (nx+0.5)*cell, y2 = oy + (ny+0.5)*cell;
+        // 垂直于通道方向的拱起量：同一段路固定，看起来就是一条缓弯
+        const bow = (hash3(c, r, di) - 0.5) * cell * 0.26;
+        const mx = (x1+x2)/2, my = (y1+y2)/2;
+
+        p.moveTo(x1, y1);
+        p.quadraticCurveTo(mx - d.dy*bow, my + d.dx*bow, x2, y2);
+      }
+    }
+  }
+  return p;
+}
+
+function drawRoads(){
+  const cell = G.cell;
+  if(!G.roadsPath) G.roadsPath = buildRoadPath();
+
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // 路缘
+  ctx.strokeStyle = 'rgba(126,168,112,.55)';
+  ctx.lineWidth = cell*0.74;
+  ctx.stroke(G.roadsPath);
+
+  // 路面
+  ctx.strokeStyle = '#fdfefb';
+  ctx.lineWidth = cell*0.60;
+  ctx.stroke(G.roadsPath);
+}
+
+// ---------------- 渲染 ----------------
+function render(){
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.fillStyle = '#eef5e6';
+  ctx.fillRect(0,0,VW,VH);
+
+  if(G.state === 'menu'){ renderMenuBg(); return; }
+  if(!G.maze) return;
+
+  const cell = G.cell;
+  const ox = G.ox, oy = G.oy;
+
+  // ---- 草地底 ----
+  ctx.fillStyle = '#dcecd0';
+  rr(ctx, ox-10, oy-10, cell*G.cols+20, cell*G.rows+20, 22);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(90,130,90,.18)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // ---- 弯道路网 ----
+  drawRoads();
+
+  // ---- 走过的脚印 ----
+  ctx.fillStyle = 'rgba(76,175,110,.14)';
+  for(const id of G.footprints){
+    const cx = id % 1000, cy = (id / 1000) | 0;
+    if(cx === G.px && cy === G.py) continue;
+    ctx.beginPath();
+    ctx.arc(ox + (cx+0.5)*cell, oy + (cy+0.5)*cell, Math.max(2.5, cell*0.09), 0, TAU);
+    ctx.fill();
+  }
+
+  // ---- 提示路径 ----
+  if(G.hintPath && G.hintTimer > 0){
+    const a = clamp(G.hintTimer/1.0, 0, 1) * 0.9;
+    ctx.strokeStyle = `rgba(242,177,52,${a})`;
+    ctx.lineWidth = Math.max(3, cell*0.14);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.setLineDash([cell*0.28, cell*0.24]);
+    ctx.beginPath();
+    const hp = G.hintPath;
+    const p0 = cellToPix(hp[0][0], hp[0][1]);
+    ctx.moveTo(p0.x, p0.y);
+    for(let i=1;i<hp.length-1;i++){
+      const a = cellToPix(hp[i][0], hp[i][1]);
+      const b = cellToPix(hp[i+1][0], hp[i+1][1]);
+      ctx.quadraticCurveTo(a.x, a.y, (a.x+b.x)/2, (a.y+b.y)/2);
+    }
+    const pl = cellToPix(hp[hp.length-1][0], hp[hp.length-1][1]);
+    ctx.lineTo(pl.x, pl.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // ---- 终点标记（妈妈的小窝）----
+  {
+    const p = cellToPix(G.cols-1, 0);
+    const r = cell*0.46;
+    const pulse = 1 + Math.sin(elapsed*3)*0.05;
+    ctx.fillStyle = 'rgba(244,162,89,.18)';
+    ctx.beginPath(); ctx.arc(p.x, p.y, r*1.25*pulse, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(244,162,89,.5)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5,5]);
+    ctx.beginPath(); ctx.arc(p.x, p.y, r*1.25, 0, TAU); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // ---- 粒子（爱心）----
+  for(let i=0;i<particles.length;i++){
+    const p = particles[i];
+    const k = 1 - p.life/p.max;
+    ctx.globalAlpha = k;
+    drawHeart(p.x, p.y, p.size*(0.6+k*0.4), '#f2789f');
+  }
+  ctx.globalAlpha = 1;
+
+  // ---- 妈妈恐龙 ----
+  {
+    const p = cellToPix(G.cols-1, 0);
+    const hop = G.state === 'win' ? Math.abs(Math.sin(G.winT*6)) * cell*0.18 : Math.sin(elapsed*2.2)*cell*0.03;
+    drawDino(p.x, p.y - hop, cell*0.62, Math.PI/2*0, '#f4a259', '#e8874a', true);
+    // 头顶爱心
+    if(G.state === 'win'){
+      drawHeart(p.x + cell*0.3, p.y - cell*0.55 - Math.sin(G.winT*4)*4, cell*0.16, '#f2789f');
+    }
+  }
+
+  // ---- 小恐龙 ----
+  if(G.state !== 'win'){
+    let cx = G.px, cy = G.py;
+    if(G.mv){
+      const k = easeOut(clamp(G.mv.t,0,1));
+      cx = lerp(G.mv.fx, G.mv.tx, k);
+      cy = lerp(G.mv.fy, G.mv.ty, k);
+    }
+    const p = cellToPix(cx, cy);
+    const bob = G.mv ? Math.abs(Math.sin(G.mv.t*Math.PI))*cell*0.08 : Math.sin(elapsed*3)*cell*0.02;
+    const shake = G.bumpT > 0 ? Math.sin(elapsed*70)*G.bumpT*3 : 0;
+    drawDino(p.x + shake, p.y - bob, cell*0.42, G.faceAng, '#5cbf6e', '#43a05a', false);
+  } else {
+    // 胜利时小恐龙飞奔到妈妈身边
+    const p = cellToPix(G.cols-1, 0);
+    const k = easeOut(clamp(G.winT/0.8, 0, 1));
+    const sp = cellToPix(0, G.rows-1);
+    drawDino(lerp(sp.x, p.x - cell*0.55, k), lerp(sp.y, p.y, k) - Math.abs(Math.sin(G.winT*8))*cell*0.2*(1-k*0.6),
+             cell*0.42, 0, '#5cbf6e', '#43a05a', false);
+  }
+}
+
+function drawHeart(x, y, s, color){
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x, y + s*0.35);
+  ctx.bezierCurveTo(x - s, y - s*0.35, x - s*0.5, y - s, x, y - s*0.3);
+  ctx.bezierCurveTo(x + s*0.5, y - s, x + s, y - s*0.35, x, y + s*0.35);
+  ctx.fill();
+}
+
+// Q 版俯视小恐龙：尾巴在后，圆头在前，背刺沿中线
+function drawDino(x, y, size, ang, body, dark, isMom){
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(ang);
+
+  const s = size;
+  // 影子
+  ctx.fillStyle = 'rgba(60,90,60,.18)';
+  ctx.beginPath();
+  ctx.ellipse(0, s*0.12, s*0.62, s*0.42, 0, 0, TAU);
+  ctx.fill();
+
+  // 尾巴
+  ctx.fillStyle = dark;
+  ctx.beginPath();
+  ctx.moveTo(-s*0.28, -s*0.14);
+  ctx.quadraticCurveTo(-s*0.85, -s*0.2, -s*0.95, 0.02*s);
+  ctx.quadraticCurveTo(-s*0.85, s*0.22, -s*0.28, s*0.14);
+  ctx.closePath();
+  ctx.fill();
+
+  // 身体
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, s*0.5, s*0.34, 0, 0, TAU);
+  ctx.fill();
+
+  // 背刺
+  ctx.fillStyle = dark;
+  for(let i=-1;i<=1;i++){
+    const bx = i*0.26*s;
+    const bw = 0.11*s, bh = (i===0 ? 0.2 : 0.15)*s;
+    ctx.beginPath();
+    ctx.moveTo(bx - bw, -s*0.06);
+    ctx.lineTo(bx, -s*0.06 - bh);
+    ctx.lineTo(bx + bw, -s*0.06);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // 头
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.arc(s*0.42, 0, s*0.26, 0, TAU);
+  ctx.fill();
+  // 吻部
+  ctx.fillStyle = dark;
+  ctx.beginPath();
+  ctx.ellipse(s*0.6, 0, s*0.1, s*0.12, 0, 0, TAU);
+  ctx.fill();
+
+  // 眼睛（俯视两只）
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(s*0.44, -s*0.13, s*0.075, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(s*0.44,  s*0.13, s*0.075, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#2c3a30';
+  ctx.beginPath(); ctx.arc(s*0.47, -s*0.13, s*0.038, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(s*0.47,  s*0.13, s*0.038, 0, TAU); ctx.fill();
+
+  // 小爪子
+  ctx.fillStyle = dark;
+  ctx.beginPath(); ctx.ellipse(s*0.1, -s*0.3, s*0.09, s*0.06, -0.4, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(s*0.1,  s*0.3, s*0.09, s*0.06, 0.4, 0, TAU); ctx.fill();
+
+  // 妈妈标记：胸前小爱心
+  if(isMom){
+    drawHeart(-s*0.05, 0, s*0.12, '#fff');
+  }
+
+  ctx.restore();
+}
+
+// 菜单背景：天空、阳光、草坡、飘云、花瓣，还有几只散步的小恐龙
+const menuDinos = [
+  { x:0.16, y:0.24, s:66, ang:0.5,  spd:24, c:'#5cbf6e', d:'#43a05a' },
+  { x:0.82, y:0.56, s:48, ang:2.5,  spd:-30, c:'#8fd0a0', d:'#6bb384' },
+  { x:0.50, y:0.86, s:78, ang:-0.35, spd:18, c:'#f4a259', d:'#e8874a' },
+  { x:0.92, y:0.14, s:40, ang:2.1,  spd:-22, c:'#a8db8f', d:'#84c06c' }
+];
+
+const menuClouds = [];
+const menuPetals = [];
+
+function initMenuScene(){
+  menuClouds.length = 0;
+  for(let i=0;i<8;i++){
+    menuClouds.push({
+      x: Math.random(), y: 0.05 + Math.random()*0.40,
+      s: 50 + Math.random()*80,
+      v: 0.018 + Math.random()*0.030,
+      a: 0.22 + Math.random()*0.30
+    });
+  }
+  menuPetals.length = 0;
+  const cols = ['#b9e39d','#f7cd97','#f4a7bd','#9bd9ad','#ffe6a7'];
+  for(let i=0;i<26;i++){
+    menuPetals.push({
+      x: Math.random(), y: Math.random(),
+      s: 4 + Math.random()*7,
+      v: 0.012 + Math.random()*0.026,
+      rot: Math.random()*TAU, vr: (Math.random()-0.5)*1.4,
+      sway: Math.random()*TAU, c: cols[i % cols.length]
+    });
+  }
+}
+
+function drawCloud(x, y, s, a){
+  ctx.fillStyle = `rgba(255,255,255,${a})`;
+  ctx.beginPath();
+  ctx.ellipse(x, y, s*0.50, s*0.26, 0, 0, TAU);
+  ctx.ellipse(x - s*0.32, y + s*0.06, s*0.32, s*0.20, 0, 0, TAU);
+  ctx.ellipse(x + s*0.34, y + s*0.04, s*0.34, s*0.22, 0, 0, TAU);
+  ctx.fill();
+}
+
+function drawHills(){
+  const layers = [
+    { base:0.79, amp:24, col:'rgba(154,208,142,.50)', phase:1.2 },
+    { base:0.90, amp:18, col:'rgba(122,190,120,.55)', phase:3.4 }
+  ];
+  for(const L of layers){
+    const y0 = VH*L.base;
+    ctx.beginPath();
+    ctx.moveTo(0, VH);
+    for(let x=0; x<=VW; x+=24){
+      const t = x/VW;
+      const y = y0
+        + Math.sin(t*TAU*1.4 + L.phase)*L.amp
+        + Math.sin(t*TAU*0.55 + L.phase*2)*L.amp*0.55;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(VW, VH);
+    ctx.closePath();
+    ctx.fillStyle = L.col;
+    ctx.fill();
+  }
+}
+
+function renderMenuBg(){
+  // 天空
+  const sky = ctx.createLinearGradient(0, 0, 0, VH);
+  sky.addColorStop(0, '#f0fae6');
+  sky.addColorStop(0.48, '#e4f3d8');
+  sky.addColorStop(1, '#d6eac9');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, VW, VH);
+
+  // 阳光
+  const sx = VW*0.84, sy = VH*0.10;
+  const sun = ctx.createRadialGradient(sx, sy, 0, sx, sy, Math.max(VW, VH)*0.62);
+  sun.addColorStop(0,    'rgba(255,247,208,.95)');
+  sun.addColorStop(0.20, 'rgba(255,241,192,.42)');
+  sun.addColorStop(1,    'rgba(255,238,180,0)');
+  ctx.fillStyle = sun;
+  ctx.fillRect(0, 0, VW, VH);
+
+  drawHills();
+
+  // 飘云
+  for(const c of menuClouds){
+    c.x += c.v * 0.016;
+    if(c.x > 1.3) c.x = -0.3;
+    drawCloud(c.x*VW, c.y*VH, c.s, c.a);
+  }
+
+  // 花瓣
+  for(const p of menuPetals){
+    p.y -= p.v * 0.016;
+    p.sway += 0.02;
+    p.rot += p.vr * 0.016;
+    if(p.y < -0.06){ p.y = 1.06; p.x = Math.random(); }
+    ctx.save();
+    ctx.translate(p.x*VW + Math.sin(p.sway)*12, p.y*VH);
+    ctx.rotate(p.rot);
+    ctx.globalAlpha = 0.6;
+    ctx.fillStyle = p.c;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, p.s, p.s*0.55, 0, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+
+  // 散步的小恐龙
+  const dt = 1/60;
+  for(const d of menuDinos){
+    d.x += Math.cos(d.ang)*d.spd*dt/VW;
+    d.y += Math.sin(d.ang)*d.spd*dt/VH;
+    if(d.x < 0.05 || d.x > 0.95) d.ang = Math.PI - d.ang;
+    if(d.y < 0.14 || d.y > 0.90) d.ang = -d.ang;
+    ctx.globalAlpha = 0.92;
+    drawDino(d.x*VW, d.y*VH, d.s, d.ang, d.c, d.d, false);
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ---------------- HUD ----------------
+const elLv = document.getElementById('lvVal');
+const elLvEn = document.getElementById('lvEn');
+const elTime = document.getElementById('timeVal');
+const elStep = document.getElementById('stepVal');
+const elHint = document.getElementById('hintVal');
+let cache = {};
+
+function syncHUD(){
+  if(cache.lv !== G.level){ cache.lv = G.level; elLv.textContent = G.level; elLvEn.textContent = G.level; }
+  const t = Math.floor(G.time);
+  const mm = Math.floor(t/60), ss = String(t%60).padStart(2,'0');
+  const ts = mm + ':' + ss;
+  if(cache.t !== ts){ cache.t = ts; elTime.textContent = ts; }
+  if(cache.s !== G.steps){ cache.s = G.steps; elStep.textContent = G.steps; }
+  if(cache.h !== G.hints){ cache.h = G.hints; elHint.textContent = G.hints; }
+  document.getElementById('btnHint').disabled = G.hints <= 0;
+}
+
+// ---------------- 卡片 ----------------
+const overlay = document.getElementById('overlay');
+const cardEl = document.getElementById('card');
+
+function fmtTime(t){
+  const m = Math.floor(t/60), s = Math.floor(t%60);
+  return m + ':' + String(s).padStart(2,'0');
+}
+
+function showCard(type, arg){
+  overlay.classList.remove('hidden');
+  if(type === 'menu'){
+    G.state = 'menu';
+    document.getElementById('hud').classList.remove('show');
+
+    const TIERS = ['入门 Easy','轻松 Light','轻松 Light','进阶 Normal','进阶 Normal','挑战 Hard','挑战 Hard','困难 Tough','困难 Tough','噩梦 Expert'];
+    let stars = 0, nextLv = 0;
+    for(let i=1;i<=10;i++){
+      if(Store.getItem('dino_maze_best_'+i)) stars++;
+      else if(!nextLv) nextLv = i;
+    }
+    if(!nextLv) nextLv = 1;
+
+    let btns = '';
+    for(let i=1;i<=10;i++){
+      const has = Store.getItem('dino_maze_best_'+i);
+      const h1 = 148 - (i-1)*9.6;
+      const h2 = h1 - 6;
+      btns += `<button class="lvbtn" data-lv="${i}"
+        style="--c1:hsl(${h1} 62% 74%);--c2:hsl(${h2} 52% 43%);animation-delay:${60 + i*38}ms">
+        ${has ? '<span class="star">★</span>' : ''}
+        <div class="n">${i}</div>
+        <div class="d">${LEVELS[i-1].cols}×${LEVELS[i-1].rows} · ${TIERS[i-1]}</div>
+      </button>`;
+    }
+
+    cardEl.innerHTML = `
+      <div class="hero">
+        <div class="hero-glow"></div>
+        <div class="hero-dinos">🦕<span class="heart">💛</span>🦕</div>
+        <h1 class="title"><span>小恐龙找妈妈</span></h1>
+        <div class="title-en">Baby Dino Finds Mommy</div>
+        <div class="ribbon">迷 宫 大 冒 险 · MAZE ADVENTURE · 10 LEVELS</div>
+      </div>
+      <p class="sub">小恐龙在左下角，妈妈在右上角的小窝里等它。<br>
+      穿过弯弯绕绕的小路，别走死胡同，去和妈妈团聚吧！
+      <span class="en">Baby dino starts bottom-left; mommy waits in her nest top-right.<br>Wind through the maze and reunite them!</span></p>
+      <div class="level-grid">${btns}</div>
+      <button class="btn" id="btnStart">开 始 冒 险 · START</button>
+      <div class="keys">
+        <div><kbd>↑↓←→</kbd> / <kbd>WASD</kbd> 移动 <span class="en">Move</span></div>
+        <div><kbd>H</kbd> 使用提示 <span class="en">Hint</span></div>
+        <div><kbd>R</kbd> 重新开始本关 <span class="en">Restart</span></div>
+        <div><kbd>V</kbd> 语音 <span class="en">Voice</span> · <kbd>M</kbd> 静音 <span class="en">Mute</span></div>
+        <div>📱 手机拖动 <span class="en">Mobile: hold &amp; drag</span></div>
+      </div>
+      <div class="progress">
+        <div class="ptxt"><span>通关进度 <span class="en">Progress</span></span><span><b>${stars}</b> / 10 <span class="en">Lv</span></span></div>
+        <div class="pbar"><i style="width:${stars*10}%"></i></div>
+      </div>
+    `;
+
+    cardEl.querySelectorAll('.lvbtn').forEach(b => {
+      b.addEventListener('click', () => { Sfx.init(); Sfx.resume(); startLevel(Number(b.dataset.lv)); });
+    });
+    const startBtn = cardEl.querySelector('#btnStart');
+    if(startBtn) startBtn.addEventListener('click', () => { Sfx.init(); Sfx.resume(); startLevel(nextLv); });
+
+  } else if(type === 'win'){
+    const best = Number(Store.getItem('dino_maze_best_'+G.level) || 0);
+    const nextLv = G.level < 10 ? G.level+1 : 0;
+    cardEl.innerHTML = `
+      <div class="dinos">💛🦕🦕</div>
+      <h1>找到妈妈啦！<span class="en-h1">You Found Mommy!</span></h1>
+      <p class="sub">小恐龙穿过迷宫，扑进了妈妈怀里～<span class="en">The little dino dashed through the maze, right into mom's arms~</span></p>
+      <div class="result">
+        <div class="box"><div class="n">${fmtTime(G.time)}</div><div class="k">用时 <span class="en">Time</span></div></div>
+        <div class="box"><div class="n">${G.steps}</div><div class="k">步数 <span class="en">Steps</span></div></div>
+        <div class="box"><div class="n">${fmtTime(best)}</div><div class="k">最佳 <span class="en">Best</span></div></div>
+      </div>
+      <div class="medal">${arg ? '★ 新纪录 NEW RECORD ★' : ''}</div>
+      ${nextLv ? `<button class="btn" id="btnNext">下一关 · 第 ${nextLv} 关 <span class="en">Next Level</span></button>` : `<button class="btn" id="btnNext">全部通关！再挑战一次 <span class="en">All Clear!</span></button>`}
+      <button class="btn ghost" id="btnAgain">再玩一次本关 <span class="en">Replay</span></button>
+      <button class="btn ghost" id="btnMenu">返回选关 <span class="en">Levels</span></button>
+    `;
+    document.getElementById('btnNext').addEventListener('click', () => startLevel(nextLv || G.level));
+    document.getElementById('btnAgain').addEventListener('click', () => startLevel(G.level));
+    document.getElementById('btnMenu').addEventListener('click', showMenu);
+  }
+}
+
+function hideCard(){ overlay.classList.add('hidden'); }
+function showMenu(){ showCard('menu'); Voice.say('选择一个关卡开始冒险', 'Choose a level to start.'); }
+
+// ---------------- 输入 ----------------
+const heldKeys = new Set();
+const KEYMAP = {
+  ArrowUp:0, KeyW:0, ArrowRight:1, KeyD:1, ArrowDown:2, KeyS:2, ArrowLeft:3, KeyA:3
+};
+
+window.addEventListener('keydown', e => {
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+  if(e.code === 'KeyH'){ useHint(); return; }
+  if(e.code === 'KeyR' && G.state !== 'menu'){ startLevel(G.level); return; }
+  if(e.code === 'KeyV'){
+    Voice.enabled = !Voice.enabled;
+    if(!Voice.enabled) Voice.stop();
+    return;
+  }
+  if(e.code === 'KeyM'){
+    const m = !Sfx.muted;
+    Sfx.muted = m;
+    if(Sfx.master) Sfx.master.gain.value = m ? 0 : 0.5;
+    Voice.enabled = !m;
+    if(!Voice.enabled) Voice.stop();
+    return;
+  }
+  if(e.code === 'Escape'){ showMenu(); return; }
+  if(KEYMAP[e.code] !== undefined){ heldKeys.add(e.code); Sfx.init(); Sfx.resume(); }
+});
+window.addEventListener('keyup', e => heldKeys.delete(e.code));
+window.addEventListener('blur', () => heldKeys.clear());
+
+function getHeldDir(){
+  // 键盘优先（最后按下的生效）
+  let last = -1;
+  for(const k of heldKeys){
+    if(KEYMAP[k] !== undefined) last = KEYMAP[k];
+  }
+  if(last >= 0) return last;
+  return touchDir;
+}
+
+// 触屏：锚点式拖动，拖出方向走一步，锚点前移实现连续行走
+let anchor = null, touchDir = -1;
+
+cvs.addEventListener('pointerdown', e => {
+  if(G.state !== 'playing') return;
+  anchor = { x: e.clientX, y: e.clientY };
+  touchDir = -1;
+  Sfx.init(); Sfx.resume();
+});
+cvs.addEventListener('pointermove', e => {
+  if(!anchor || G.state !== 'playing') return;
+  const dx = e.clientX - anchor.x, dy = e.clientY - anchor.y;
+  const TH = 26;
+  if(Math.abs(dx) < TH && Math.abs(dy) < TH) return;
+  let d;
+  if(Math.abs(dx) > Math.abs(dy)) d = dx > 0 ? 1 : 3;
+  else d = dy > 0 ? 2 : 0;
+  if(d !== touchDir || !G.mv){
+    touchDir = d;
+    tryMove(d);
+    // 锚点前移，让继续拖动可以连续触发
+    anchor = { x: e.clientX, y: e.clientY };
+  }
+});
+const clearTouch = () => { anchor = null; touchDir = -1; };
+cvs.addEventListener('pointerup', clearTouch);
+cvs.addEventListener('pointercancel', clearTouch);
+
+// 按钮
+document.getElementById('btnBack').addEventListener('click', showMenu);
+document.getElementById('btnRestart').addEventListener('click', () => startLevel(G.level));
+document.getElementById('btnHint').addEventListener('click', useHint);
+
+// ---------------- 主循环 ----------------
+let lastT = 0;
+function loop(now){
+  if(!lastT) lastT = now;
+  let dt = (now - lastT)/1000;
+  lastT = now;
+  if(dt > 1/20) dt = 1/20;
+  if(dt < 0) dt = 0;
+
+  update(dt);
+  render();
+  syncHUD();
+  requestAnimationFrame(loop);
+}
+
+document.addEventListener('visibilitychange', () => { lastT = 0; });
+
+// ---------------- 启动 ----------------
+function boot(){
+  resize();
+  initMenuScene();
+  showCard('menu');
+  requestAnimationFrame(loop);
+}
+boot();
+
+})();
+</script>
+</body>
+</html>
